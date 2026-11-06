@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Полевой определитель</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,500;0,700;0,800;1,500&family=Golos+Text:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: a field notebook. The viewfinder sits in the left column, the specimen tag and the observation log in the right one; on phones they stack. */
+  :root {
+    --paper: #ECEFE8;
+    --surface: #F7F8F4;
+    --ink: #16211C;
+    --ink-2: #4B5A52;
+    --rule: #CBD3C9;
+    --accent: #1D5C47;
+    --accent-ink: #FFFFFF;
+    --tag: #E8A600;
+    --stage: #DDE3DA;
+    --stage-dot: #BAC4B7;
+
+    --f-display: 'Alegreya', Georgia, 'Times New Roman', serif;
+    --f-body: 'Golos Text', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --f-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --radius: 4px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #101613; --surface: #17201C; --ink: #E6EDE7; --ink-2: #A3B2A8; --rule: #2A3730;
+      --accent: #7BCBA6; --accent-ink: #0B1511; --tag: #F2B531; --stage: #0C110E; --stage-dot: #26332C;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #101613; --surface: #17201C; --ink: #E6EDE7; --ink-2: #A3B2A8; --rule: #2A3730;
+    --accent: #7BCBA6; --accent-ink: #0B1511; --tag: #F2B531; --stage: #0C110E; --stage-dot: #26332C;
+    color-scheme: dark;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font: 400 15px/1.5 var(--f-body);
+    -webkit-text-size-adjust: 100%;
+  }
+  button, input { font: inherit; color: inherit; }
+
+  .app {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding-block: 16px 56px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  /* header */
+  .top {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding-bottom: 14px; margin-bottom: 20px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .brand svg { color: var(--accent); flex: none; }
+  .brand-name { font: 800 24px/1.1 var(--f-display); letter-spacing: -0.01em; }
+  .meta { display: none; font: 500 11px/1 var(--f-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2); }
+  .mark-dot { fill: var(--tag); stroke: none; }
+
+  /* grid */
+  .grid { display: grid; gap: 24px; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 640px) { .meta { display: block; } }
+  @media (min-width: 880px) {
+    .grid { grid-template-columns: minmax(340px, 420px) minmax(0, 1fr); gap: 40px; align-items: start; }
+    .scanner { position: sticky; top: 16px; }
+  }
+  .output { display: grid; gap: 28px; min-width: 0; align-content: start; }
+
+  /* viewfinder */
+  .stage {
+    position: relative; width: 100%; max-width: 100%; aspect-ratio: 4 / 5;
+    background-color: var(--stage);
+    background-image: radial-gradient(var(--stage-dot) 1px, transparent 1.3px);
+    background-size: 18px 18px;
+    border: 1px solid var(--rule); border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .stage.drag { outline: 3px solid var(--tag); outline-offset: 2px; }
+  .stage img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: cover; }
+  .c { position: absolute; width: 30px; height: 30px; border: 0 solid var(--tag); z-index: 3; pointer-events: none; }
+  .c.tl { top: 14px; left: 14px; border-top-width: 3px; border-left-width: 3px; }
+  .c.tr { top: 14px; right: 14px; border-top-width: 3px; border-right-width: 3px; }
+  .c.bl { bottom: 14px; left: 14px; border-bottom-width: 3px; border-left-width: 3px; }
+  .c.br { bottom: 14px; right: 14px; border-bottom-width: 3px; border-right-width: 3px; }
+  .hint {
+    position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px;
+    padding: 48px 36px; text-align: center; color: var(--ink-2);
+  }
+  .hint svg { color: var(--ink-2); opacity: 0.7; }
+  .hint-main { font: italic 500 22px/1.25 var(--f-display); color: var(--ink); margin: 0; text-wrap: balance; }
+  .hint-sub { font: 500 11px/1.4 var(--f-mono); letter-spacing: 0.1em; text-transform: uppercase; margin: 0; }
+  .scan {
+    position: absolute; left: 0; right: 0; top: 6%; height: 2px; z-index: 2; background: var(--tag);
+    box-shadow: 0 0 18px 4px color-mix(in srgb, var(--tag) 55%, transparent);
+    animation: sweep 2.2s ease-in-out infinite alternate;
+  }
+  @keyframes sweep { from { top: 6%; } to { top: 94%; } }
+  @media (prefers-reduced-motion: reduce) { .scan { animation: none; top: 50%; } }
+  .bar {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 4;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 12px;
+    background: color-mix(in srgb, var(--paper) 90%, transparent);
+    border-top: 1px solid var(--rule);
+    font: 500 12px/1.3 var(--f-mono);
+  }
+
+  /* buttons */
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .btn {
+    position: relative; display: flex; align-items: center; justify-content: center; gap: 8px;
+    min-height: 48px; padding: 10px 12px; border: 1.5px solid var(--accent); border-radius: var(--radius);
+    font: 600 15px/1.2 var(--f-body); text-align: center; cursor: pointer; user-select: none; -webkit-user-select: none;
+  }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover { background: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
+  .btn.ghost { background: transparent; color: var(--accent); }
+  .btn.ghost:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .btn:focus-within, .btn:focus-visible { outline: 3px solid var(--tag); outline-offset: 2px; }
+  .btn.sm { min-height: 40px; padding: 8px 16px; font-size: 14px; }
+  .btn[aria-disabled="true"] { opacity: 0.45; pointer-events: none; }
+  .btn svg { flex: none; }
+  .sr { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+  .mini {
+    font: 500 12px/1 var(--f-mono); letter-spacing: 0.04em; padding: 8px 10px; background: transparent;
+    border: 1px solid var(--ink-2); border-radius: var(--radius); cursor: pointer;
+  }
+  .mini:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+  .mini:focus-visible { outline: 3px solid var(--tag); outline-offset: 2px; }
+  .fine { font-size: 12.5px; line-height: 1.45; color: var(--ink-2); margin: 10px 0 0; max-width: 62ch; }
+
+  /* specimen tag */
+  .tagcard {
+    position: relative; background: var(--surface); border: 1px solid var(--rule);
+    border-radius: var(--radius); padding: 18px 18px 16px; min-width: 0;
+  }
+  .tagcard::after {
+    content: ""; position: absolute; top: 14px; right: 14px; width: 12px; height: 12px;
+    border-radius: 50%; background: var(--paper); border: 1px solid var(--rule);
+  }
+  .tag-head {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding-right: 26px;
+    font: 500 11px/1.4 var(--f-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2);
+  }
+  .stamp {
+    display: inline-block; padding: 3px 8px; border: 1.5px solid var(--accent); color: var(--accent);
+    transform: rotate(-3deg); letter-spacing: 0.14em;
+  }
+  .name { font: 800 clamp(30px, 8vw, 40px)/1.05 var(--f-display); letter-spacing: -0.01em; margin: 14px 0 2px; text-wrap: balance; overflow-wrap: anywhere; }
+  .latin { font: italic 500 19px/1.3 var(--f-display); color: var(--ink-2); margin: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+  .chip {
+    font: 500 11px/1 var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 5px 8px; border: 1px solid var(--rule); border-radius: 2px;
+  }
+  .chip.hl { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .sec { border-top: 1px solid var(--rule); margin-top: 16px; padding-top: 14px; }
+  .lab { font: 500 11px/1.4 var(--f-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2); margin: 0 0 8px; }
+  .lab.inline { margin: 0; }
+  .breed { font: 700 24px/1.2 var(--f-display); margin: 0; overflow-wrap: anywhere; }
+  .breed-note { margin: 4px 0 0; color: var(--ink-2); }
+  .meter-row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-bottom: 8px; }
+  .mono-val { font: 500 13px/1.3 var(--f-mono); font-variant-numeric: tabular-nums; }
+  .track { height: 6px; background: var(--rule); border-radius: 3px; overflow: hidden; }
+  .fill { display: block; height: 100%; background: var(--accent); }
+  .fill.weak { background: var(--tag); }
+
+  .w-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+  .w-lab { font-size: 13px; color: var(--ink-2); margin: 0 0 2px; }
+  .w-val { font: 500 26px/1.15 var(--f-mono); font-variant-numeric: tabular-nums; margin: 0; overflow-wrap: anywhere; }
+  .scale { position: relative; height: 10px; background: var(--rule); border-radius: 2px; margin-top: 18px; }
+  .seg { position: absolute; top: 0; bottom: 0; min-width: 4px; }
+  .seg.typ { background: var(--accent); opacity: 0.45; }
+  .seg.est { background: var(--tag); top: -3px; bottom: -3px; border: 2px solid var(--surface); border-radius: 2px; min-width: 8px; }
+  .scale-ends { display: flex; justify-content: space-between; font: 500 11px/1.4 var(--f-mono); color: var(--ink-2); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; font-size: 12.5px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { display: inline-block; width: 12px; height: 8px; border-radius: 1px; }
+  .legend .l-typ { background: var(--accent); opacity: 0.45; }
+  .legend .l-est { background: var(--tag); }
+
+  .specs { margin: 0; }
+  .row { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr); gap: 4px 14px; padding: 10px 0; border-top: 1px solid var(--rule); }
+  .row:first-child { border-top: 0; padding-top: 0; }
+  .row dt { font: 500 11px/1.7 var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+  .row dd { margin: 0; overflow-wrap: anywhere; }
+  @media (max-width: 440px) { .row { grid-template-columns: minmax(0, 1fr); } }
+
+  .fact { margin: 0; font: italic 500 19px/1.4 var(--f-display); max-width: 56ch; }
+  .alts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .alts .chip { text-transform: none; font-size: 12px; letter-spacing: 0.02em; }
+
+  /* notes / errors */
+  .note-card { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius); padding: 18px; }
+  .note-title { font: 700 26px/1.15 var(--f-display); margin: 6px 0 8px; text-wrap: balance; }
+  .note-text { margin: 0; max-width: 60ch; }
+  .note-text + .note-text { margin-top: 8px; color: var(--ink-2); }
+  .row-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+
+  /* log */
+  .log-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .log-title { font: 700 24px/1.1 var(--f-display); margin: 0; }
+  .log-count { font: 500 12px/1 var(--f-mono); color: var(--ink-2); margin-left: 8px; }
+  .log-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 14px 12px; margin: 0; padding: 0; list-style: none; }
+  .log-item { display: block; width: 100%; padding: 0; background: none; border: 0; text-align: left; cursor: pointer; }
+  .log-item img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border: 1px solid var(--rule); border-radius: var(--radius); }
+  .log-item:hover img { border-color: var(--ink-2); }
+  .log-item:focus-visible { outline: 3px solid var(--tag); outline-offset: 3px; }
+  .log-item[aria-current="true"] img { outline: 3px solid var(--tag); outline-offset: 2px; }
+  .log-name { display: block; font: 700 16px/1.2 var(--f-display); margin-top: 6px; overflow-wrap: anywhere; }
+  .log-date { display: block; font: 400 11px/1.4 var(--f-mono); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+</style>
+
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square" aria-hidden="true"><path d="M3 10V3h7M18 3h7v7M25 18v7h-7M10 25H3v-7"/><circle class="mark-dot" cx="14" cy="14" r="3.4"/></svg>
+      <span class="brand-name">Полевой определитель</span>
+    </div>
+    <span class="meta">Вид · порода · вес · размеры</span>
+  </header>
+
+  <main class="grid">
+    <section class="scanner" aria-label="Сканер животных">
+      <div class="stage" id="stage">
+        <img id="photo" alt="Снимок животного" hidden>
+        <div class="hint" id="hint">
+          <svg viewBox="0 0 28 28" width="56" height="56" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" aria-hidden="true"><path d="M3 10V3h7M18 3h7v7M25 18v7h-7M10 25H3v-7"/><circle cx="14" cy="14" r="3.4"/></svg>
+          <p class="hint-main">Поместите животное в рамку</p>
+          <p class="hint-sub">Снимок или файл из галереи</p>
+        </div>
+        <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+        <div class="scan" id="scan" hidden></div>
+        <div class="bar" id="bar" hidden>
+          <span id="barText" role="status">Анализирую снимок</span>
+          <button type="button" class="mini" id="cancel">Отмена</button>
+        </div>
+      </div>
+
+      <div class="actions">
+        <label class="btn primary" id="camBtn">
+          <input class="sr" id="camInput" type="file" accept="image/*" capture="environment">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.6-2.2h6.8L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.2" r="3.6"/></svg>
+          <span>Снять на камеру</span>
+        </label>
+        <label class="btn ghost" id="galBtn">
+          <input class="sr" id="galInput" type="file" accept="image/*">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/></svg>
+          <span>Из галереи</span>
+        </label>
+      </div>
+      <p class="fine" id="consent">Первый анализ попросит разрешение: снимок уходит в Claude и расходует ваш лимит. Журнал наблюдений хранится только в этом браузере.</p>
+      <p class="fine" id="notice" hidden></p>
+    </section>
+
+    <section class="output" aria-label="Результат">
+      <div id="out"></div>
+      <div id="log"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  document.documentElement.lang = 'ru';
+
+  /* ---------- helpers ---------- */
+  var $ = function (s) { return document.querySelector(s); };
+  function el(tag, props) {
+    var e = document.createElement(tag);
+    if (props) {
+      Object.keys(props).forEach(function (k) {
+        var v = props[k];
+        if (v == null || v === false) return;
+        if (k === 'class') e.className = v;
+        else if (k === 'style') e.style.cssText = v;
+        else if (k.slice(0, 2) === 'on') e.addEventListener(k.slice(2), v);
+        else e.setAttribute(k, v === true ? '' : v);
+      });
+    }
+    var kids = Array.prototype.slice.call(arguments, 2);
+    (function add(list) {
+      list.forEach(function (kid) {
+        if (kid == null || kid === false) return;
+        if (Array.isArray(kid)) return add(kid);
+        e.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+      });
+    })(kids);
+    return e;
+  }
+  var pad = function (n) { return String(n).padStart(4, '0'); };
+  var clamp = function (x, a, b) { return Math.max(a, Math.min(b, x)); };
+  function fmtDate(ts) {
+    try {
+      return new Date(ts).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(', ', ' · ');
+    } catch (e) { return ''; }
+  }
+  function fmtShort(ts) {
+    try {
+      return new Date(ts).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return ''; }
+  }
+  function nf(x) {
+    return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: x < 10 ? 1 : 0 }).format(x);
+  }
+  function fmtRange(r) {
+    var k = 1, u = 'кг';
+    if (r.max < 1) { k = 1000; u = 'г'; }
+    else if (r.max >= 1000) { k = 1 / 1000; u = 'т'; }
+    var a = nf(r.min * k), b = nf(r.max * k);
+    return (a === b ? a : a + '–' + b) + ' ' + u;
+  }
+
+  /* ---------- the question for Claude ---------- */
+  var PROMPT = [
+    'Ты — определитель животных по фотографии. Посмотри на снимок и ответь ОДНИМ JSON-объектом, без текста до и после него.',
+    '',
+    'Если на снимке нет животного или его невозможно различить, верни:',
+    '{"is_animal": false, "what_is_it": "что видно на снимке, одной короткой фразой"}',
+    '',
+    'Если животных несколько, опиши самое заметное в кадре, а остальных назови в поле "others".',
+    '',
+    'Если животное есть, верни объект такого вида (тексты по-русски, числа — числами, неизвестное — null):',
+    '{',
+    '  "is_animal": true,',
+    '  "name": "название вида, например: Рыжая лисица",',
+    '  "latin": "латинское название вида или null",',
+    '  "group": "Млекопитающее, Птица, Рептилия, Земноводное, Рыба, Насекомое, Паукообразное или другая группа",',
+    '  "domestic": true или false,',
+    '  "breed": "порода, только для домашних животных и только если её можно определить по снимку, иначе null",',
+    '  "breed_note": "короткая оговорка: метис, похоже на такую-то породу, по фото не определить; иначе null",',
+    '  "confidence": число от 0 до 100, насколько ты уверен в определении вида,',
+    '  "alternatives": [{"name": "другой возможный вид или порода", "confidence": число}] — не больше двух, пустой список, если сомнений нет,',
+    '  "weight_kg": {"min": число, "max": число} — типичный вес взрослой особи этого вида (для домашних — этой породы) в килограммах,',
+    '  "weight_estimate_kg": {"min": число, "max": число} — грубая оценка веса именно этого животного по снимку с учётом возраста и пропорций, или null, если по снимку оценить нельзя,',
+    '  "size": "типичные размеры взрослой особи с единицами: длина тела, высота в холке, размах крыльев",',
+    '  "lifespan": "типичная продолжительность жизни, например 10–14 лет",',
+    '  "diet": "чем питается, кратко",',
+    '  "habitat": "где живёт, кратко",',
+    '  "temperament": "повадки и характер, кратко",',
+    '  "conservation": "охранный статус по МСОП одной фразой для диких видов, для домашних null",',
+    '  "danger": "насколько животное опасно для человека и как вести себя при встрече, одной фразой",',
+    '  "age_sex": "возраст и пол этого животного, если видно на снимке, иначе null",',
+    '  "coloring": "окрас и приметы этого животного, кратко",',
+    '  "fact": "один интересный достоверный факт о виде",',
+    '  "others": "кто ещё есть в кадре, или null"',
+    '}',
+    '',
+    'Правила: не выдумывай. Если не уверен, ставь null или низкую уверенность. Вес по снимку — только приблизительная оценка. Каждое текстовое поле — не длиннее одного-двух предложений.'
+  ].join('\n');
+
+  /* ---------- reading the answer (it is untrusted data) ---------- */
+  function clip(v, max) {
+    max = max || 360;
+    if (typeof v !== 'string') return null;
+    var t = v.trim();
+    if (!t || /^(null|none|n\/a|нет данных|неизвестно|не определено)$/i.test(t)) return null;
+    return t.length > max ? t.slice(0, max - 1) + '…' : t;
+  }
+  function num(v) {
+    if (v == null || v === '' || typeof v === 'boolean') return null;
+    var x = Number(v);
+    return isFinite(x) ? x : null;
+  }
+  function rng(o) {
+    if (!o || typeof o !== 'object') return null;
+    var a = num(o.min), b = num(o.max);
+    if (a == null && b == null) return null;
+    if (a == null) a = b;
+    if (b == null) b = a;
+    if (a > b) { var t = a; a = b; b = t; }
+    if (a < 0 || b <= 0) return null;
+    return { min: a, max: b };
+  }
+  function pct(v) {
+    var x = num(v);
+    return x == null ? null : clamp(Math.round(x), 0, 100);
+  }
+  function normalize(r) {
+    if (!r || typeof r !== 'object' || Array.isArray(r)) return null;
+    if (r.is_animal === false) return { isAnimal: false, what: clip(r.what_is_it, 200) };
+    var name = clip(r.name, 80);
+    if (!name) return null;
+    var alts = (Array.isArray(r.alternatives) ? r.alternatives : []).slice(0, 2).map(function (a) {
+      return { name: clip(a && a.name, 80), confidence: pct(a && a.confidence) };
+    }).filter(function (a) { return a.name; });
+    return {
+      isAnimal: true,
+      name: name,
+      latin: clip(r.latin, 80),
+      group: clip(r.group, 40),
+      domestic: r.domestic === true ? true : r.domestic === false ? false : null,
+      breed: clip(r.breed, 80),
+      breedNote: clip(r.breed_note, 200),
+      confidence: pct(r.confidence),
+      alts: alts,
+      weight: rng(r.weight_kg),
+      est: rng(r.weight_estimate_kg),
+      size: clip(r.size), lifespan: clip(r.lifespan, 100), diet: clip(r.diet), habitat: clip(r.habitat),
+      temperament: clip(r.temperament), conservation: clip(r.conservation), danger: clip(r.danger),
+      ageSex: clip(r.age_sex), coloring: clip(r.coloring), fact: clip(r.fact, 400), others: clip(r.others, 200)
+    };
+  }
+
+  /* ---------- log kept in this browser only ---------- */
+  var KEY = 'polevoy-opredelitel.v1';
+  var store = (function () {
+    try {
+      var o = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (o && Array.isArray(o.items)) return { counter: Number(o.counter) || o.items.length, items: o.items };
+    } catch (e) {}
+    return { counter: 0, items: [] };
+  })();
+  function persist() {
+    var copy = { counter: store.counter, items: store.items.slice() };
+    for (;;) {
+      try { localStorage.setItem(KEY, JSON.stringify(copy)); return; }
+      catch (e) { if (copy.items.length <= 1) return; copy.items.pop(); }
+    }
+  }
+
+  /* ---------- state ---------- */
+  var state = { phase: 'idle', photo: null, thumb: null, blob: null, ratio: 1, result: null, no: 0, ts: 0, error: null, started: 0 };
+  var ctl = null, timer = null, clearArmed = false, clearTimer = null;
+
+  var EXAMPLE = {
+    isAnimal: true, name: 'Рыжая лисица', latin: 'Vulpes vulpes', group: 'Млекопитающее', domestic: false,
+    breed: null, breedNote: null, confidence: 94, alts: [],
+    weight: { min: 3, max: 14 }, est: { min: 5, max: 7 },
+    size: 'Длина тела 60–90 см, хвост 35–50 см, высота в холке около 35–40 см',
+    lifespan: '3–6 лет в природе, до 12–14 лет в неволе',
+    diet: 'Всеядный хищник: мелкие грызуны, птицы, насекомые, ягоды',
+    habitat: 'Леса, степи, тундра и окраины городов почти по всему Северному полушарию',
+    temperament: 'Осторожна, активна в сумерках и ночью, охотится в одиночку',
+    conservation: 'Вызывает наименьшие опасения (LC, МСОП)',
+    danger: 'Для человека безопасна. Не кормите и не трогайте: лисицы могут переносить бешенство',
+    ageSex: 'Взрослая особь, пол по снимку не определить',
+    coloring: 'Рыжая спина, белая грудь, тёмные «чулки» на лапах',
+    fact: 'Лисица слышит мышей под слоем снега и ныряет за ними в сугроб.',
+    others: null
+  };
+
+  /* ---------- Claude (sample capability) ---------- */
+  var sampleP = (function () {
+    try {
+      if (window.claude && typeof window.claude.use === 'function') {
+        return Promise.resolve(window.claude.use('sample')).then(function (s) { return s || null; }, function () { return null; });
+      }
+    } catch (e) {}
+    return Promise.resolve(null);
+  })();
+  sampleP.then(function (s) {
+    if (!s) showNotice('Определение работает, когда страница открыта в Claude. Здесь снимок можно выбрать, но проанализировать его не получится.');
+  });
+  function showNotice(t) {
+    var n = $('#notice'); n.textContent = t; n.hidden = !t;
+  }
+
+  /* ---------- photo handling ---------- */
+  function readImage(file) {
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader();
+      fr.onerror = function () { reject(new Error('read')); };
+      fr.onload = function () {
+        var img = new Image();
+        img.onload = function () { resolve(img); };
+        img.onerror = function () { reject(new Error('decode')); };
+        img.src = fr.result;
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+  function toBlob(canvas, q) {
+    return new Promise(function (resolve, reject) {
+      canvas.toBlob(function (b) { b ? resolve(b) : reject(new Error('blob')); }, 'image/jpeg', q);
+    });
+  }
+  async function prepare(file) {
+    var src = null;
+    try {
+      if (window.createImageBitmap) src = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    } catch (e) { src = null; }
+    if (!src) src = await readImage(file);
+    var w = src.width || src.naturalWidth, h = src.height || src.naturalHeight;
+    if (!w || !h) throw new Error('size');
+    var k = Math.min(1, 1568 / Math.max(w, h));
+    var cw = Math.max(1, Math.round(w * k)), ch = Math.max(1, Math.round(h * k));
+    var c = document.createElement('canvas');
+    c.width = cw; c.height = ch;
+    var ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cw, ch);
+    ctx.drawImage(src, 0, 0, cw, ch);
+    if (src.close) try { src.close(); } catch (e) {}
+    var blob = await toBlob(c, 0.86);
+    var dataUrl = c.toDataURL('image/jpeg', 0.86);
+    var side = 320, m = Math.min(cw, ch);
+    var t = document.createElement('canvas');
+    t.width = side; t.height = side;
+    t.getContext('2d').drawImage(c, (cw - m) / 2, (ch - m) / 2, m, m, 0, 0, side, side);
+    return { blob: blob, dataUrl: dataUrl, thumb: t.toDataURL('image/jpeg', 0.72), ratio: cw / ch };
+  }
+
+  async function onPick(file) {
+    if (!file) return;
+    try {
+      var p = await prepare(file);
+      state.photo = p.dataUrl; state.thumb = p.thumb; state.blob = p.blob; state.ratio = p.ratio;
+    } catch (e) {
+      state.photo = null; state.blob = null; state.phase = 'error'; state.error = { code: 'decode' };
+      render();
+      return;
+    }
+    analyze(false);
+  }
+
+  /* ---------- the scan ---------- */
+  function tick() {
+    var s = Math.floor((Date.now() - state.started) / 1000);
+    $('#barText').textContent = 'Анализирую снимок · ' + s + ' с';
+  }
+  function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
+
+  async function analyze(fresh) {
+    if (!state.blob) return;
+    state.phase = 'loading'; state.error = null; state.result = null;
+    state.started = Date.now();
+    stopTimer(); tick(); timer = setInterval(tick, 1000);
+    render();
+    ctl = new AbortController();
+    try {
+      var sample = await sampleP;
+      if (!sample) throw { code: 'no_sample' };
+      var caps = await sample.limits().catch(function () { return null; });
+      if (!caps || !caps.images) throw { code: 'images_unavailable' };
+      var opts = { images: state.blob, signal: ctl.signal };
+      if (fresh) opts.cache = false;
+      var raw = await sample.json(PROMPT, opts);
+      var d = normalize(raw);
+      if (!d) throw { code: 'invalid_json' };
+      stopTimer();
+      if (!d.isAnimal) {
+        state.phase = 'none'; state.result = d;
+      } else {
+        store.counter += 1;
+        state.no = store.counter; state.ts = Date.now(); state.result = d; state.phase = 'result';
+        store.items.unshift({ no: state.no, ts: state.ts, thumb: state.thumb, data: d });
+        store.items = store.items.slice(0, 16);
+        persist();
+      }
+      render();
+      revealOutput();
+    } catch (e) {
+      stopTimer();
+      state.phase = 'error';
+      state.error = { code: (e && e.code) || 'upstream_error' };
+      render();
+    } finally {
+      ctl = null;
+    }
+  }
+
+  function revealOutput() {
+    if (window.matchMedia && window.matchMedia('(min-width: 880px)').matches) return;
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    try { $('#out').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }); } catch (e) {}
+  }
+
+  function openItem(item) {
+    if (ctl) return;
+    state.phase = 'result'; state.photo = item.thumb; state.thumb = item.thumb; state.blob = null; state.ratio = 1;
+    state.result = item.data; state.no = item.no; state.ts = item.ts; state.error = null;
+    render();
+    revealOutput();
+  }
+
+  /* ---------- rendering ---------- */
+  function renderStage() {
+    var has = !!state.photo, img = $('#photo');
+    img.hidden = !has;
+    if (has && img.getAttribute('src') !== state.photo) img.src = state.photo;
+    $('#hint').hidden = has;
+    $('#scan').hidden = state.phase !== 'loading';
+    $('#bar').hidden = state.phase !== 'loading';
+    $('#stage').style.aspectRatio = has ? String(clamp(state.ratio || 1, 0.8, 1.4)) : '4 / 5';
+    var busy = state.phase === 'loading';
+    ['camBtn', 'galBtn'].forEach(function (id) { $('#' + id).setAttribute('aria-disabled', busy ? 'true' : 'false'); });
+    ['camInput', 'galInput'].forEach(function (id) { $('#' + id).disabled = busy; });
+  }
+
+  function weightBlock(d) {
+    if (!d.weight && !d.est) return null;
+    var cols = [];
+    if (d.weight) cols.push(el('div', null, el('p', { class: 'w-lab' }, 'Взрослая особь, типично'), el('p', { class: 'w-val' }, fmtRange(d.weight))));
+    if (d.est) cols.push(el('div', null, el('p', { class: 'w-lab' }, 'Это животное, оценка по снимку'), el('p', { class: 'w-val' }, '≈ ' + fmtRange(d.est))));
+    var scale = null;
+    if (d.weight && d.est) {
+      var top = Math.max(d.weight.max, d.est.max) * 1.1;
+      var seg = function (cls, r) {
+        return el('i', { class: 'seg ' + cls, style: 'left:' + (r.min / top * 100).toFixed(2) + '%;width:' + ((r.max - r.min) / top * 100).toFixed(2) + '%' });
+      };
+      scale = [
+        el('div', { class: 'scale', 'aria-hidden': 'true' }, seg('typ', d.weight), seg('est', d.est)),
+        el('div', { class: 'scale-ends', 'aria-hidden': 'true' }, el('span', null, '0'), el('span', null, fmtRange({ min: top, max: top }))),
+        el('div', { class: 'legend', 'aria-hidden': 'true' },
+          el('span', null, el('i', { class: 'l-typ' }), 'типично для вида'),
+          el('span', null, el('i', { class: 'l-est' }), 'это животное'))
+      ];
+    }
+    return el('div', { class: 'sec' },
+      el('p', { class: 'lab' }, 'Вес'),
+      el('div', { class: 'w-grid' }, cols),
+      scale,
+      el('p', { class: 'fine' }, 'Вес по снимку определяют приблизительно. Точный вес даёт только взвешивание.'));
+  }
+
+  function confBlock(c) {
+    var weak = c < 60;
+    var q = c >= 85 ? 'высокая' : c >= 60 ? 'средняя' : 'низкая';
+    return el('div', { class: 'sec' },
+      el('div', { class: 'meter-row' },
+        el('span', { class: 'lab inline' }, 'Уверенность в виде'),
+        el('span', { class: 'mono-val' }, c + '% · ' + q)),
+      el('div', { class: 'track', role: 'img', 'aria-label': 'Уверенность ' + c + ' процентов' },
+        el('span', { class: 'fill' + (weak ? ' weak' : ''), style: 'width:' + c + '%' })),
+      weak ? el('p', { class: 'fine' }, 'Снимите ближе и при хорошем свете, чтобы животное занимало большую часть кадра.') : null);
+  }
+
+  function renderResult(d, meta) {
+    var chips = [];
+    if (d.group) chips.push(el('span', { class: 'chip hl' }, d.group));
+    if (d.domestic === true) chips.push(el('span', { class: 'chip' }, 'Домашнее'));
+    if (d.domestic === false) chips.push(el('span', { class: 'chip' }, 'Дикое'));
+
+    var breed = null;
+    if (d.breed || (d.domestic && d.breedNote)) {
+      breed = el('div', { class: 'sec' },
+        el('p', { class: 'lab' }, 'Порода'),
+        d.breed ? el('p', { class: 'breed' }, d.breed) : null,
+        d.breedNote ? el('p', { class: 'breed-note' }, d.breedNote) : null);
+    }
+
+    var rows = [
+      ['Размеры', d.size], ['Срок жизни', d.lifespan], ['Питание', d.diet], ['Среда обитания', d.habitat],
+      ['Повадки', d.temperament], ['Охранный статус', d.conservation], ['Безопасность', d.danger],
+      ['Возраст и пол', d.ageSex], ['Окрас', d.coloring], ['Ещё в кадре', d.others]
+    ].filter(function (r) { return r[1]; });
+
+    return el('article', { class: 'tagcard' },
+      el('div', { class: 'tag-head' },
+        meta.example ? el('span', { class: 'stamp' }, 'Пример') : el('span', null, 'Наблюдение № ' + pad(meta.no)),
+        el('span', null, meta.example ? 'Так выглядит результат' : fmtDate(meta.ts))),
+      el('h2', { class: 'name' }, d.name),
+      d.latin ? el('p', { class: 'latin' }, d.latin) : null,
+      chips.length ? el('div', { class: 'chips' }, chips) : null,
+      d.confidence != null ? confBlock(d.confidence) : null,
+      d.alts.length ? el('div', { class: 'sec' }, el('p', { class: 'lab' }, 'Другие варианты'),
+        el('div', { class: 'alts' }, d.alts.map(function (a) { return el('span', { class: 'chip' }, a.name + (a.confidence != null ? ' · ' + a.confidence + '%' : '')); }))) : null,
+      breed,
+      weightBlock(d),
+      rows.length ? el('div', { class: 'sec' }, el('dl', { class: 'specs' }, rows.map(function (r) {
+        return el('div', { class: 'row' }, el('dt', null, r[0]), el('dd', null, r[1]));
+      }))) : null,
+      d.fact ? el('div', { class: 'sec' }, el('p', { class: 'lab' }, 'Любопытный факт'), el('p', { class: 'fact' }, d.fact)) : null,
+      el('p', { class: 'fine' }, 'Определение по снимку приблизительное. Если от него зависит здоровье питомца или безопасность, спросите ветеринара или специалиста.'));
+  }
+
+  var ERRORS = {
+    cancelled: ['Анализ остановлен', 'Снимок остался на месте. Запустите определение ещё раз, когда будете готовы.', true],
+    not_granted: ['Нужно разрешение', 'Вы не разрешили странице использовать Claude для анализа снимка. Обновите страницу и разрешите доступ в окне запроса.', false],
+    sampling_disabled: ['Claude недоступен', 'Для вашего аккаунта или организации Claude здесь отключён, поэтому определить животное не получится.', false],
+    no_sample: ['Анализ недоступен', 'Откройте страницу в Claude: вне его снимок проанализировать нельзя.', false],
+    images_unavailable: ['Анализ снимков недоступен', 'В этом окне нельзя отправлять изображения в Claude. Откройте страницу в приложении Claude или на claude.ai.', false],
+    capability_disabled: ['Анализ недоступен', 'Claude отключён для этой страницы. Откройте её в приложении Claude или на claude.ai.', false],
+    capability_removed: ['Анализ недоступен', 'Это окно не поддерживает нужную функцию. Обновите приложение Claude.', false],
+    not_declared: ['Анализ недоступен', 'У страницы нет доступа к Claude. Откройте её заново из Claude.', false],
+    rate_limited: ['Слишком много запросов', 'Лимит запросов исчерпан. Подождите немного и повторите.', true],
+    session_expired: ['Нужно войти заново', 'Сессия в Claude истекла. Войдите в аккаунт и повторите.', true],
+    image_rejected: ['Снимок не подошёл', 'Не удалось принять этот файл. Выберите другое фото в формате JPEG, PNG или WebP.', false],
+    refused: ['Claude не смог разобрать снимок', 'Попробуйте другой кадр.', false],
+    invalid_json: ['Не получилось разобрать ответ', 'Такое случается. Повторите определение: второй раз обычно выходит.', true],
+    empty_completion: ['Ответ пришёл пустым', 'Повторите определение.', true],
+    decode: ['Не удалось открыть изображение', 'Сделайте снимок камерой или выберите файл JPEG или PNG.', false]
+  };
+  var ERR_DEFAULT = ['Связь прервалась', 'Ответ не дошёл. Проверьте соединение и повторите.', true];
+
+  function errorCard() {
+    var e = ERRORS[state.error && state.error.code] || ERR_DEFAULT;
+    var retry = e[2] && state.blob;
+    return el('div', { class: 'note-card', role: 'alert' },
+      el('p', { class: 'lab' }, 'Не получилось'),
+      el('h2', { class: 'note-title' }, e[0]),
+      el('p', { class: 'note-text' }, e[1]),
+      retry ? el('div', { class: 'row-actions' }, el('button', { type: 'button', class: 'btn primary sm', onclick: function () { analyze(true); } }, 'Повторить')) : null);
+  }
+
+  function renderOut() {
+    var out = $('#out');
+    out.replaceChildren();
+    var p = state.phase;
+    if (p === 'loading') {
+      out.append(el('div', { class: 'note-card', role: 'status' },
+        el('p', { class: 'lab' }, 'Идёт определение'),
+        el('h2', { class: 'note-title' }, 'Смотрю на снимок'),
+        el('p', { class: 'note-text' }, 'Здесь появятся вид, порода, вес и размеры. Это может занять до минуты.')));
+    } else if (p === 'error') {
+      out.append(errorCard());
+    } else if (p === 'none') {
+      out.append(el('div', { class: 'note-card', role: 'status' },
+        el('p', { class: 'lab' }, 'Результат'),
+        el('h2', { class: 'note-title' }, 'Животное не найдено'),
+        state.result && state.result.what ? el('p', { class: 'note-text' }, 'На снимке: ' + state.result.what + '.') : null,
+        el('p', { class: 'note-text' }, 'Подойдите ближе, чтобы животное занимало большую часть кадра, и снимайте при хорошем свете.')));
+    } else if (p === 'result') {
+      out.append(renderResult(state.result, { no: state.no, ts: state.ts }));
+    } else if (!store.items.length) {
+      out.append(renderResult(EXAMPLE, { example: true }));
+    }
+  }
+
+  function renderLog() {
+    var log = $('#log');
+    log.replaceChildren();
+    if (!store.items.length) return;
+    var clear = el('button', { type: 'button', class: 'mini', onclick: function () {
+      if (!clearArmed) {
+        clearArmed = true;
+        clearTimer = setTimeout(function () { clearArmed = false; renderLog(); }, 4000);
+        renderLog();
+        return;
+      }
+      clearTimeout(clearTimer); clearArmed = false;
+      store.items = []; persist();
+      render();
+    } }, clearArmed ? 'Точно очистить?' : 'Очистить');
+    log.append(
+      el('div', { class: 'log-head' },
+        el('h2', { class: 'log-title' }, 'Журнал', el('span', { class: 'log-count' }, store.items.length)),
+        clear),
+      el('ul', { class: 'log-grid' }, store.items.map(function (it) {
+        var current = state.phase === 'result' && state.no === it.no && !state.blob;
+        return el('li', null, el('button', { type: 'button', class: 'log-item', 'aria-current': current ? 'true' : null, onclick: function () { openItem(it); } },
+          el('img', { src: it.thumb, alt: '', loading: 'lazy' }),
+          el('span', { class: 'log-name' }, it.data.name),
+          el('span', { class: 'log-date' }, '№ ' + pad(it.no) + ' · ' + fmtShort(it.ts))));
+      })));
+  }
+
+  function render() { renderStage(); renderOut(); renderLog(); }
+
+  /* ---------- wiring ---------- */
+  function bindInput(id) {
+    var inp = $('#' + id);
+    inp.addEventListener('change', function () {
+      var f = inp.files && inp.files[0];
+      inp.value = '';
+      onPick(f);
+    });
+  }
+  bindInput('camInput'); bindInput('galInput');
+  $('#cancel').addEventListener('click', function () { if (ctl) ctl.abort(); });
+
+  var stage = $('#stage');
+  stage.addEventListener('dragover', function (e) { e.preventDefault(); stage.classList.add('drag'); });
+  stage.addEventListener('dragleave', function () { stage.classList.remove('drag'); });
+  stage.addEventListener('drop', function (e) {
+    e.preventDefault(); stage.classList.remove('drag');
+    if (state.phase === 'loading') return;
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f && /^image\//.test(f.type)) onPick(f);
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
